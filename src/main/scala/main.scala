@@ -131,6 +131,7 @@ class SingleCycleCPU extends Module {
     val zf          = Output(Bool())
     val of          = Output(Bool())
     val aluResult   = Output(UInt(32.W))
+    val aluSignResult = Output(SInt(32.W))
     val currentInst = Output(UInt(32.W))
     val currentPC   = Output(UInt(32.W))
   })
@@ -141,7 +142,7 @@ class SingleCycleCPU extends Module {
   pc := pcNext
 
   val imem = Module(new AsyncInstMem)
-  imem.io.addr := pc(9, 2) // 以 word 为单位寻址
+  imem.io.addr := pc(9, 2) //存储器容量为2**8  pc转化为存储器下标需要除4（右移2位)
   val inst = imem.io.inst
 
   io.currentInst := inst
@@ -235,11 +236,14 @@ class SingleCycleCPU extends Module {
   io.aluResult := alu.io.out
   io.zf        := alu.io.zf
   io.of        := alu.io.of
+  io.aluSignResult := alu.io.out.asSInt
 }
 
 // ==========================================
 // 5. 生成 Verilog
 // ==========================================
 object CPUGen extends App {
-  emitVerilog(new SingleCycleCPU, Array("--target-dir", "generated"))
+  emitVerilog(new SingleCycleCPU, Array(
+    "--target-dir", "generated",
+    ))
 }

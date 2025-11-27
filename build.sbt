@@ -1,17 +1,19 @@
 // See README.md for license details.
 
-ThisBuild / scalaVersion     := "2.13.16"
+// 【修改点 1】将 Scala 版本改为 2.13.12 以匹配 Chisel 插件
+ThisBuild / scalaVersion     := "2.13.12"
 ThisBuild / version          := "0.1.0"
 ThisBuild / organization     := "com.github.t0fv404"
 
-val chiselVersion = "7.0.0"
+val chiselVersion = "6.0.0"
 
 lazy val root = (project in file("."))
   .settings(
     name := "HDU_Compter_System_Experienment",
     libraryDependencies ++= Seq(
       "org.chipsalliance" %% "chisel" % chiselVersion,
-      "org.scalatest" %% "scalatest" % "3.2.19" % "test",
+      "edu.berkeley.cs" %% "chiseltest" % "6.0.0" % "test",
+      "org.scalatest" %% "scalatest" % "3.2.16" % "test"
     ),
     scalacOptions ++= Seq(
       "-language:reflectiveCalls",
