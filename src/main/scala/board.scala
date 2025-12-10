@@ -84,13 +84,13 @@ class BoardTop(sim: Boolean = false)(implicit config: CPUConfig) extends Module 
   // ----------------------------------------------------------
   // 3. 数据显示选择 (使用拨码开关 sw[2:0] 选择)
   // ----------------------------------------------------------
-  val displayData = MuxLookup(io.sw(2, 0), cpu.io.debug.pc)(Seq(
-    0.U -> cpu.io.debug.pc,       // 000: PC
-    1.U -> cpu.io.debug.inst,     // 001: 指令
-    2.U -> cpu.io.debug.aluOut,   // 010: ALU 结果
-    3.U -> cpu.io.debug.memRData, // 011: 内存读数据
-    4.U -> cpu.io.debug.memWData, // 100: 内存写数据
-    5.U -> cpu.io.debug.memAddr,  // 101: 内存地址
+  val displayData = MuxLookup(io.sw(2, 0), cpu.io.debug.get.pc)(Seq(
+    0.U -> cpu.io.debug.get.pc,       // 000: PC
+    1.U -> cpu.io.debug.get.inst,     // 001: 指令
+    2.U -> cpu.io.debug.get.aluOut,   // 010: ALU 结果
+    3.U -> cpu.io.debug.get.memRData, // 011: 内存读数据
+    4.U -> cpu.io.debug.get.memWData, // 100: 内存写数据
+    5.U -> cpu.io.debug.get.memAddr,  // 101: 内存地址
     6.U -> Cat(Fill(31, 0.U), cpuClkReg),      // 110: 时钟心跳
     7.U -> Cat(Fill(31, 0.U), cpuReset.asUInt) // 111: 复位状态
   ))
@@ -112,7 +112,7 @@ class BoardTop(sim: Boolean = false)(implicit config: CPUConfig) extends Module 
   // ----------------------------------------------------------
   io.led := Cat(
     Fill(28, 0.U),              // LED[31:4] 关闭
-    cpu.io.debug.memWen,        // LED[3]: 内存写指示
+    cpu.io.debug.get.memWen,        // LED[3]: 内存写指示
     cpuReset.asUInt,            // LED[2]: 复位状态
     io.swb(0),                  // LED[1]: 按键状态
     cpuClkReg                   // LED[0]: CPU 时钟心跳

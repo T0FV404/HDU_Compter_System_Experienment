@@ -8,9 +8,10 @@ class CPUConfig {
   val XLEN = 32           // 数据位宽
   val ADDR_WIDTH = 32     // 地址位宽
   val REG_NUM = 32        // 寄存器数量
-  val IMEM_SIZE = 1024    // 指令存储器大小（字）
-  val DMEM_SIZE = 1024    // 数据存储器大小（字）
+  val IMEM_SIZE = 64    // 指令存储器大小（字）
+  val DMEM_SIZE = 64    // 数据存储器大小（字）
   val PC_START = 0x0      // PC 起始地址
+  var enableDebug = true // 控制debug
 }
 
 // ==========================================
@@ -255,7 +256,7 @@ class RegisterFile(implicit config: CPUConfig) extends Module {
     val rs2Data = Output(UInt(config.XLEN.W))
   })
 
-  val regs = RegInit(VecInit(Seq.fill(config.REG_NUM)(0.U(config.XLEN.W))))
+  val regs = Reg(Vec(config.REG_NUM, UInt(config.XLEN.W)))
 
   io.rs1Data := Mux(io.rs1Addr === 0.U, 0.U, regs(io.rs1Addr))
   io.rs2Data := Mux(io.rs2Addr === 0.U, 0.U, regs(io.rs2Addr))
@@ -295,10 +296,10 @@ class InstructionMemory(implicit config: CPUConfig) extends Module {
     "h0000006f".U   // 0x44: jal x0, 0
   )
 
-  val mem = RegInit(VecInit(program ++ Seq.fill(config.IMEM_SIZE - program.length)("h00000013".U)))
+  val romContent = program ++ Seq.fill(config.IMEM_SIZE - program.length)("h00000013".U)
+  val wordAddr = io.addr >> 2
   
-  val wordAddr = io.addr(31, 2)
-  io.inst := mem(wordAddr)
+  io.inst := VecInit(romContent)(wordAddr)
 }
 
 // ==========================================
@@ -312,9 +313,8 @@ class DataMemory(implicit config: CPUConfig) extends Module {
     val rdata = Output(UInt(config.XLEN.W))
   })
 
-  val mem = RegInit(VecInit(Seq.fill(config.DMEM_SIZE)(0.U(config.XLEN.W))))
-  
-  val wordAddr = io.addr(31, 2)
+  val mem = Mem(config.DMEM_SIZE, UInt(config.XLEN.W))  
+  val wordAddr = io.addr >> 2
   
   io.rdata := mem(wordAddr)
   
@@ -408,8 +408,8 @@ class Datapath(implicit config: CPUConfig) extends Module {
 // 11. 单周期 CPU 顶层
 // ==========================================
 class SingleCycleCPU(implicit config: CPUConfig) extends Module {
-  val io = IO(new Bundle {
-    val debug = new Bundle {
+val io = IO(new Bundle {
+    val debug = if (config.enableDebug) Some(new Bundle {
       val pc       = Output(UInt(config.ADDR_WIDTH.W))
       val inst     = Output(UInt(config.XLEN.W))
       val aluOut   = Output(UInt(config.XLEN.W))
@@ -417,7 +417,7 @@ class SingleCycleCPU(implicit config: CPUConfig) extends Module {
       val memWData = Output(UInt(config.XLEN.W))
       val memRData = Output(UInt(config.XLEN.W))
       val memWen   = Output(Bool())
-    }
+    }) else None
   })
 
   val control  = Module(new ControlUnit)
@@ -445,20 +445,44 @@ class SingleCycleCPU(implicit config: CPUConfig) extends Module {
   dmem.io.wen   := control.io.ctrl.memWen
 
   // ========== 调试输出 ==========
-  io.debug.pc       := datapath.io.pc
-  io.debug.inst     := inst
-  io.debug.aluOut   := datapath.io.aluOut
-  io.debug.memAddr  := datapath.io.aluOut
-  io.debug.memWData := datapath.io.memWData
-  io.debug.memRData := dmem.io.rdata
-  io.debug.memWen   := control.io.ctrl.memWen
+  if (config.enableDebug) {
+      val dbg = io.debug.get
+      dbg.pc       := datapath.io.pc
+      dbg.inst     := inst
+      dbg.aluOut   := datapath.io.aluOut
+      dbg.memAddr  := datapath.io.aluOut
+      dbg.memWData := datapath.io.memWData
+      dbg.memRData := dmem.io.rdata
+      dbg.memWen   := control.io.ctrl.memWen
+  }
 }
+
 
 // ==========================================
 // 12. 顶层生成
 // ==========================================
 object CPUGen extends App {
-  implicit val config = new CPUConfig
   
-  emitVerilog(new SingleCycleCPU, Array("--target-dir", "generated"))
+  // --- 生成仿真版本 (带 Debug) ---
+  val configSim = new CPUConfig
+  configSim.enableDebug = true // 开启调试
+  
+  // 使用匿名类重写 desiredName 来修改 Verilog 模块名
+  emitVerilog(new SingleCycleCPU()(configSim) {
+    override val desiredName = "SingleCycleCPU_Sim" 
+  }, Array(
+    "--target-dir", "generated" // ✅ 输出到 generated_sim 文件夹
+  ))
+  println("Simulation Verilog generated in /generated")
+
+  // --- 生成实现版本 (低功耗，无 Debug) ---
+  val configImpl = new CPUConfig
+  configImpl.enableDebug = false // 关闭调试
+  
+  emitVerilog(new SingleCycleCPU()(configImpl) {
+    override val desiredName = "SingleCycleCPU_Impl"
+  }, Array(
+    "--target-dir", "generated" // ✅ 输出到 generated_impl 文件夹
+  ))
+  println("Implementation Verilog generated in /generated")
 }
